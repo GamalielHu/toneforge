@@ -1,0 +1,63 @@
+name: Compilar APK
+
+on:
+  push:
+    branches-ignore: [registro]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: compilar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: APK para Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Compilar APK (assembleDebug, firma fija)
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+          test ${PIPESTATUS[0]} -eq 0
+          cp app/build/outputs/apk/debug/app-debug.apk ToneForge.apk
+
+      - name: Guardar errores de compilación
+        if: failure()
+        run: |
+          mkdir -p /tmp/reg && cd /tmp/reg
+          grep -E "^e: |error:|FAILURE|FAILED|What went wrong|Exception" -A3 "$GITHUB_WORKSPACE/build.log" | head -300 > errores.txt || true
+          tail -150 "$GITHUB_WORKSPACE/build.log" > final.txt || true
+          git init -q -b registro && git config user.name GamalielHu && git config user.email gamalielhu@users.noreply.github.com
+          git add -A && git commit -qm "errores ${{ github.run_number }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" registro
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ToneForge-apk
+          path: ToneForge.apk
+
+      - name: Publicar descarga
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.${{ github.run_number }}
+          name: ToneForge 1.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          files: ToneForge.apk
+          make_latest: true
+          body: |
+            Descarga **ToneForge.apk** y ábrelo en el celular para instalar.
+            Las versiones nuevas se instalan encima sin desinstalar.
