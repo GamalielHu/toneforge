@@ -39,31 +39,37 @@ class MainActivity : ComponentActivity() {
         var resultados by remember { mutableStateOf(emptyList<ToneItem>()) }
         var sonando by remember { mutableStateOf<String?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
+        var ocupado by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
 
         fun buscar() = scope.launch {
+            error = null; ocupado = "Buscando…"
             resultados = withContext(Dispatchers.Default) { repo.search(consulta, tipo) }
+            if (resultados.isEmpty()) error = "Sin resultados"
+            ocupado = null
         }
 
         fun alternar(item: ToneItem) = scope.launch {
             detener()
             if (sonando == item.id) { sonando = null; return@launch }
+            ocupado = "Componiendo…"
             runCatching {
                 val f = withContext(Dispatchers.Default) { repo.render(item, cacheDir) }
+                ocupado = null
                 player = MediaPlayer().apply {
                     setDataSource(f.absolutePath)
                     setOnCompletionListener { sonando = null }
                     prepare(); start()
                 }
                 sonando = item.id
-            }.onFailure { error = it.message }
+            }.onFailure { error = it.message; ocupado = null }
         }
 
         Scaffold(topBar = { TopAppBar(title = { Text("ToneForge") }) }) { pad ->
             Column(Modifier.padding(pad).padding(16.dp).fillMaxSize()) {
                 OutlinedTextField(
                     value = consulta, onValueChange = { consulta = it },
-                    label = { Text("Describe el tono (ej. marimba alegre)") },
+                    label = { Text("Artista, género o descripción (ej. Luis Miguel)") },
                     singleLine = true, modifier = Modifier.fillMaxWidth(),
                 )
                 Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -73,6 +79,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.weight(1f))
                     Button(onClick = { buscar() }) { Text("Buscar") }
                 }
+                ocupado?.let { Row { CircularProgressIndicator(Modifier.size(18.dp)); Text("  $it") } }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(resultados, key = { it.id }) { item ->
@@ -80,7 +87,7 @@ class MainActivity : ComponentActivity() {
                             Row(Modifier.padding(12.dp)) {
                                 Column(Modifier.weight(1f)) {
                                     Text(item.title, style = MaterialTheme.typography.titleSmall)
-                                    Text("%.1f s · %s".format(item.durationMs / 1000f, item.license),
+                                    Text("%.1f s · %s".format(item.durationMs / 1000f, item.tags.firstOrNull() ?: item.license),
                                         style = MaterialTheme.typography.bodySmall)
                                 }
                                 TextButton(onClick = { alternar(item) }) {

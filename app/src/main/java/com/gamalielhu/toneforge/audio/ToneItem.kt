@@ -2,9 +2,9 @@ package com.gamalielhu.toneforge.audio
 
 enum class ToneKind(val label: String) { LLAMADA("Llamada"), NOTIFICACION("Notificación") }
 
-enum class ToneSource { SINTETIZADO, FREESOUND, LOCAL, URL }
+enum class ToneSource { SINTETIZADO, COMPUESTO, FREESOUND, LOCAL, URL }
 
-/** Un resultado de búsqueda: sintetizado (trae [spec]) o de una librería libre (trae [uri]). */
+/** Un resultado: sintetizado ([spec]), compuesto por estilo ([composicion]) o de una librería libre ([uri]). */
 data class ToneItem(
     val id: String,
     val title: String,
@@ -14,6 +14,7 @@ data class ToneItem(
     val score: Float,
     val tags: List<String> = emptyList(),
     val spec: ToneSpec? = null,
+    val composicion: Composicion? = null,
     val uri: String? = null,
     val license: String = "CC0",
     val author: String? = null,
